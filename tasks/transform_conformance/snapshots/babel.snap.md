@@ -1,6 +1,6 @@
 commit: 16a2d671
 
-Passed: 765/1190
+Passed: 767/1190
 
 # All Passed:
 * babel-plugin-transform-logical-assignment-operators
@@ -186,7 +186,7 @@ x Output mismatch
 x Output mismatch
 
 
-# babel-plugin-transform-class-properties (213/269)
+# babel-plugin-transform-class-properties (208/269)
 * assumption-constantSuper/complex-super-class/input.js
 x Output mismatch
 
@@ -203,6 +203,9 @@ x Output mismatch
 x Output mismatch
 
 * assumption-setPublicClassFields/computed/input.js
+x Output mismatch
+
+* assumption-setPublicClassFields/static-infer-name/input.js
 x Output mismatch
 
 * assumption-setPublicClassFields/static-super-loose/input.js
@@ -254,6 +257,9 @@ x Output mismatch
 x Output mismatch
 
 * private/parenthesized-optional-member-call-with-transform/input.js
+x Output mismatch
+
+* private/static-infer-name/input.js
 x Output mismatch
 
 * private/static-shadow/input.js
@@ -310,6 +316,9 @@ x Output mismatch
 * private-loose/parenthesized-optional-member-call-with-transform/input.js
 x Output mismatch
 
+* private-loose/static-infer-name/input.js
+x Output mismatch
+
 * public/arrow-this-without-transform/input.js
 x Expected transform error, but transformation succeeded: Unable to transform arrow inside class property
 
@@ -320,6 +329,9 @@ x Output mismatch
 x Output mismatch
 
 * public/delete-super-property/input.js
+x Output mismatch
+
+* public/static-infer-name/input.js
 x Output mismatch
 
 * public/super-destructuring-array-pattern/input.js
@@ -341,6 +353,9 @@ x Expected transform error, but transformation succeeded: Unable to transform ar
 x Output mismatch
 
 * public-loose/computed/input.js
+x Output mismatch
+
+* public-loose/static-infer-name/input.js
 x Output mismatch
 
 * public-loose/static-super/input.js
@@ -1566,28 +1581,7 @@ transform-react-jsx-development: unknown field `sourceSelf`, expected one of `ru
 transform-react-jsx-development: unknown field `sourceSelf`, expected one of `runtime`, `development`, `throwIfNamespace`, `pure`, `importSource`, `pragma`, `pragmaFrag`, `useBuiltIns`, `useSpread`, `refresh`
 
 
-# babel-plugin-proposal-decorators (0/8)
-* 2023-11-misc/setting-private-method/input.js
-x Expected transform error, but transformation succeeded: Decorated private methods are read-only, but "#x" is updated via this expression.
-
-* 2023-11-misc/setting-private-method-in-body/input.js
-x Expected transform error, but transformation succeeded: Decorated private methods are read-only, but "#x" is updated via this expression.
-
-* 2023-11-misc/setting-private-method-via-array-pattern/input.js
-x Expected transform error, but transformation succeeded: Decorated private methods are read-only, but "#x" is updated via this expression.
-
-* 2023-11-misc/setting-private-method-via-for-of/input.js
-x Expected transform error, but transformation succeeded: Decorated private methods are read-only, but "#x" is updated via this expression.
-
-* 2023-11-misc/setting-private-method-via-object-pattern/input.js
-x Expected transform error, but transformation succeeded: Decorated private methods are read-only, but "#x" is updated via this expression.
-
-* 2023-11-misc/setting-private-method-via-rest/input.js
-x Expected transform error, but transformation succeeded: Decorated private methods are read-only, but "#x" is updated via this expression.
-
-* 2023-11-misc/setting-private-method-via-update/input.js
-x Expected transform error, but transformation succeeded: Decorated private methods are read-only, but "#x" is updated via this expression.
-
+# babel-plugin-proposal-decorators (7/8)
 * legacy-regression/7030/input.js
 x Output mismatch
 

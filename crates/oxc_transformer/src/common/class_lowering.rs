@@ -22,6 +22,8 @@ use super::class_transform::ClassTransform;
 enum ClassLoweringMode {
     /// Class fields stay native; auto-accessors and static blocks may still be lowered.
     Native,
+    /// Class-properties lowers this decorated class even though the target supports class fields.
+    LowerForDecorators,
     /// Class-properties lowers this class because the target requires class field lowering.
     LowerAll,
     /// The class keeps its decorators and auto-accessors for a downstream transform.
@@ -44,18 +46,23 @@ impl ClassLowering {
     ) -> Self {
         let has_decorators = class_has_decorators(class);
         let has_auto_accessor = class_body_has_auto_accessors(&class.body);
-        // Decorated classes are always preserved for a downstream decorator transform.
-        let mode =
-            if has_decorators || (decorator_mode == DecoratorMode::Preserve && has_auto_accessor) {
-                ClassLoweringMode::Preserve
-            } else {
-                match class_transform {
-                    ClassTransform::ClassProperties { .. } => ClassLoweringMode::LowerAll,
-                    ClassTransform::None
-                    | ClassTransform::StaticBlocks
-                    | ClassTransform::StandardDecorators { .. } => ClassLoweringMode::Native,
+        let mode = if decorator_mode == DecoratorMode::Preserve
+            && (has_decorators || has_auto_accessor)
+        {
+            ClassLoweringMode::Preserve
+        } else {
+            match class_transform {
+                ClassTransform::ClassProperties { .. } => ClassLoweringMode::LowerAll,
+                ClassTransform::StandardDecorators { .. } => {
+                    if has_decorators {
+                        ClassLoweringMode::LowerForDecorators
+                    } else {
+                        ClassLoweringMode::Native
+                    }
                 }
-            };
+                ClassTransform::None | ClassTransform::StaticBlocks => ClassLoweringMode::Native,
+            }
+        };
         Self { mode, has_decorators, has_auto_accessor }
     }
 
@@ -70,8 +77,16 @@ impl ClassLowering {
     }
 
     /// Whether class-properties lowers the fields of this class.
+    ///
+    /// This includes decorated classes that class-properties lowers for standard decorators
+    /// although the target supports class fields.
     pub fn lowers_fields(self) -> bool {
-        self.mode == ClassLoweringMode::LowerAll
+        matches!(self.mode, ClassLoweringMode::LowerAll | ClassLoweringMode::LowerForDecorators)
+    }
+
+    /// Whether class-properties lowers this class only because of its standard decorators.
+    pub fn lowers_for_decorators(self) -> bool {
+        self.mode == ClassLoweringMode::LowerForDecorators
     }
 
     /// Whether a field or auto-accessor stays as written for the downstream transform.
@@ -124,10 +139,6 @@ impl ClassLowering {
 
     /// Whether standard decorator lowering has anything to do for this class.
     pub fn handles_standard_decorators(self) -> bool {
-        self.mode != ClassLoweringMode::Preserve && self.has_auto_accessor
-    }
-
-    fn depends_on_class_syntax(self) -> bool {
         self.has_decorators || self.has_auto_accessor
     }
 }
@@ -161,7 +172,7 @@ impl ClassLoweringDecisions {
             return;
         }
         let lowering = self.for_untransformed_class(class);
-        if lowering.depends_on_class_syntax() {
+        if lowering.handles_standard_decorators() {
             self.insert(class.scope_id(), lowering);
         }
     }
