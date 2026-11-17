@@ -1,6 +1,6 @@
 commit: 16a2d671
 
-Passed: 354/479
+Passed: 339/464
 
 # All Passed:
 * babel-plugin-transform-class-static-block
@@ -18,6 +18,7 @@ Passed: 354/479
 * babel-preset-typescript
 * babel-plugin-transform-react-jsx-self
 * babel-plugin-transform-react-jsx-source
+* babel-plugin-proposal-decorators
 * regexp
 * plugin-tagged-template-transform
 
@@ -35,7 +36,7 @@ after transform: SymbolId(1) "C"
 rebuilt        : SymbolId(3) "C"
 
 
-# babel-plugin-transform-class-properties (40/44)
+# babel-plugin-transform-class-properties (37/41)
 * private-field-resolve-to-method/input.js
 x Output mismatch
 
@@ -49,7 +50,7 @@ x Output mismatch
 x Output mismatch
 
 
-# babel-plugin-transform-typescript (57/73)
+# babel-plugin-transform-typescript (51/67)
 * computed-constant-value/input.ts
 x Output mismatch
 
@@ -206,7 +207,7 @@ x Output mismatch
 x Output mismatch
 
 
-# legacy-decorators (26/112)
+# legacy-decorators (24/110)
 * oxc/accessor/input.ts
 x Output mismatch
 
