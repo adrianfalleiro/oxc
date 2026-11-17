@@ -1,6 +1,6 @@
-commit: 51225612
+commit: 16a2d671
 
-Passed: 361/482
+Passed: 339/464
 
 # All Passed:
 * babel-plugin-transform-class-static-block
@@ -18,6 +18,7 @@ Passed: 361/482
 * babel-preset-typescript
 * babel-plugin-transform-react-jsx-self
 * babel-plugin-transform-react-jsx-source
+* babel-plugin-proposal-decorators
 * regexp
 * plugin-tagged-template-transform
 
@@ -35,7 +36,7 @@ after transform: SymbolId(1) "C"
 rebuilt        : SymbolId(3) "C"
 
 
-# babel-plugin-transform-class-properties (40/44)
+# babel-plugin-transform-class-properties (37/41)
 * private-field-resolve-to-method/input.js
 x Output mismatch
 
@@ -49,7 +50,7 @@ x Output mismatch
 x Output mismatch
 
 
-# babel-plugin-transform-typescript (57/73)
+# babel-plugin-transform-typescript (51/67)
 * computed-constant-value/input.ts
 x Output mismatch
 
@@ -206,7 +207,7 @@ x Output mismatch
 x Output mismatch
 
 
-# legacy-decorators (33/115)
+# legacy-decorators (24/110)
 * oxc/accessor/input.ts
 x Output mismatch
 
@@ -255,6 +256,11 @@ rebuilt        : <None>
 Unresolved references mismatch:
 after transform: ["WeakMap", "babelHelpers"]
 rebuilt        : ["WeakMap", "a", "babelHelpers", "dec"]
+
+* oxc/class-without-name-with-decorated_class/input.ts
+Symbol flags mismatch for "_default":
+after transform: SymbolId(1): SymbolFlags(Class)
+rebuilt        : SymbolId(1): SymbolFlags(BlockScopedVariable)
 
 * oxc/metadata/ambient-declared-class/input.ts
 Bindings mismatch:
@@ -552,6 +558,27 @@ rebuilt        : ReferenceId(5): ReferenceFlags(Read)
 Reference flags mismatch for "UnboundTypeReference":
 after transform: ReferenceId(3): ReferenceFlags(Read | Type)
 rebuilt        : ReferenceId(7): ReferenceFlags(Read)
+
+* oxc/static-field/input.ts
+Scope flags mismatch:
+after transform: ScopeId(4): ScopeFlags(ClassStaticBlock)
+rebuilt        : ScopeId(4): ScopeFlags(StrictMode | ClassStaticBlock)
+Scope parent mismatch:
+after transform: ScopeId(4): Some(ScopeId(0))
+rebuilt        : ScopeId(4): Some(ScopeId(3))
+Symbol reference IDs mismatch for "Foo":
+after transform: SymbolId(2): [ReferenceId(4), ReferenceId(6), ReferenceId(8)]
+rebuilt        : SymbolId(3): [ReferenceId(4), ReferenceId(8)]
+
+* oxc/static-field-with-class-properties/input.ts
+Symbol reference IDs mismatch for "Foo":
+after transform: SymbolId(2): [ReferenceId(4), ReferenceId(6), ReferenceId(8), ReferenceId(10)]
+rebuilt        : SymbolId(3): [ReferenceId(4), ReferenceId(6), ReferenceId(10)]
+
+* oxc/with-class-private-properties-unnamed-default-export/input.ts
+Symbol flags mismatch for "_default":
+after transform: SymbolId(0): SymbolFlags(Class)
+rebuilt        : SymbolId(0): SymbolFlags(BlockScopedVariable)
 
 * typescript/accessor/decoratorOnClassAccessor1/input.ts
 Bindings mismatch:

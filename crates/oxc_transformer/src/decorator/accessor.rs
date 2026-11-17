@@ -1,10 +1,10 @@
 //! Auto-accessor lowering shared by standard and legacy decorators.
 
-use oxc_allocator::{ArenaVec, CloneIn, GetAllocator};
+use oxc_allocator::{ArenaBox, ArenaVec, CloneIn, GetAllocator};
 use oxc_ast::ast::*;
 use oxc_ast_visit::VisitJs;
 use oxc_span::SPAN;
-use oxc_str::Str;
+use oxc_str::{JSStr, Str};
 use oxc_syntax::scope::ScopeId;
 use oxc_traverse::BoundIdentifier;
 use rustc_hash::FxHashSet;
@@ -22,6 +22,20 @@ use crate::{
     },
 };
 
+pub(super) fn static_key_name<'a>(
+    key: &PropertyKey<'a>,
+    ctx: &TraverseCtx<'a>,
+) -> Option<JSStr<'a>> {
+    match key {
+        PropertyKey::StaticIdentifier(ident) => Some(ident.name.into()),
+        PropertyKey::StringLiteral(lit) => Some(lit.value),
+        PropertyKey::PrivateIdentifier(ident) => {
+            Some(Str::from_strs_array_in(["#", &ident.name], ctx).into())
+        }
+        _ => None,
+    }
+}
+
 /// Replace each runtime auto-accessor in place with storage and a getter/setter pair.
 ///
 /// `accessor prop = val` becomes:
@@ -30,11 +44,20 @@ use crate::{
 /// get prop() { return this.#_prop_accessor_storage; }
 /// set prop(value) { this.#_prop_accessor_storage = value; }
 /// ```
+///
+/// The callback records mode-specific metadata before traversal visits the generated elements.
 pub(super) fn lower_auto_accessors<'a>(
     body: &mut ClassBody<'a>,
     class_scope_id: ScopeId,
     static_binding: Option<&BoundIdentifier<'a>>,
     native_fields: bool,
+    mut record: impl FnMut(
+        &mut ArenaBox<'a, PropertyDefinition<'a>>,
+        &ArenaBox<'a, MethodDefinition<'a>>,
+        &PropertyKey<'a>,
+        Option<JSStr<'a>>,
+        &mut TraverseCtx<'a>,
+    ),
     ctx: &mut TraverseCtx<'a>,
 ) {
     let accessor_count = body.body.iter().filter(|element| is_auto_accessor(element)).count();
@@ -70,6 +93,7 @@ pub(super) fn lower_auto_accessors<'a>(
             continue;
         }
         let mut accessor = accessor.unbox();
+        let original_name = static_key_name(&accessor.key, ctx);
         let (storage_name, getter_key, setter_key) = match accessor.key {
             PropertyKey::StaticIdentifier(ident) => {
                 let name = Str::from_strs_array_in(["_", &ident.name, "_accessor_storage"], ctx);
@@ -114,7 +138,7 @@ pub(super) fn lower_auto_accessors<'a>(
             }
         };
         let storage_name = unique_name(storage_name, ctx);
-        let storage = PropertyDefinition::boxed(
+        let mut storage = PropertyDefinition::boxed(
             SPAN,
             PropertyDefinitionType::PropertyDefinition,
             [],
@@ -157,6 +181,9 @@ pub(super) fn lower_auto_accessors<'a>(
             None,
             ctx,
         );
+        let ClassElement::MethodDefinition(getter_method) = &getter else { unreachable!() };
+        let ClassElement::MethodDefinition(setter_method) = &setter else { unreachable!() };
+        record(&mut storage, getter_method, &setter_method.key, original_name, ctx);
         new_body.extend([ClassElement::PropertyDefinition(storage), getter, setter]);
     }
     body.body = new_body;
