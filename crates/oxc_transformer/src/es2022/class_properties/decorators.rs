@@ -12,7 +12,7 @@ use crate::{
     context::TraverseCtx,
     decorator::standard::{
         ClassDecoratorBindings, ClassDecoratorState, ClassDecoratorTables, ClassNameRewriter,
-        DecoratorElementKind, PrivateDecoratorAccess, StandardDecoratorState,
+        DecoratorElementKind, PrivateDecoratorAccess, StandardDecoratorState, run_initializers,
     },
     utils::{
         ast_builder::create_to_property_key, decorated_class::class_body_has_static_auto_accessor,
@@ -239,7 +239,11 @@ impl<'a> ClassProperties<'a> {
             && state.instance_method_extras
         {
             let this = Expression::new_this_expression(SPAN, ctx);
-            instance_inits.push(state.run_initializers_call(5, this, ctx));
+            instance_inits.push(state.run_initializers_call(
+                run_initializers::INSTANCE_METHOD_EXTRAS,
+                this,
+                ctx,
+            ));
         }
     }
 
