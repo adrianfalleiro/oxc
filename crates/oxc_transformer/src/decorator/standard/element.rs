@@ -128,11 +128,14 @@ impl<'a> StandardDecoratorState<'a> {
                 let symbol_id = ctx.scoping().get_reference(ident.reference_id()).symbol_id();
                 ctx.create_ident_expr(SPAN, ident.name, symbol_id, ReferenceFlags::Read)
             }
-            PropertyKey::StringLiteral(lit) => {
+            PropertyKey::StaticStringLiteral(lit) | PropertyKey::StringLiteral(lit) => {
                 Expression::StringLiteral(lit.clone_in(ctx.ast.allocator()))
             }
-            PropertyKey::NumericLiteral(lit) => {
+            PropertyKey::StaticNumericLiteral(lit) | PropertyKey::NumericLiteral(lit) => {
                 Expression::NumericLiteral(lit.clone_in(ctx.ast.allocator()))
+            }
+            PropertyKey::StaticBigIntLiteral(lit) => {
+                Expression::BigIntLiteral(lit.clone_in(ctx.ast.allocator()))
             }
             key => key.to_expression().clone_in(ctx.ast.allocator()),
         }

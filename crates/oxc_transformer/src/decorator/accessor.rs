@@ -51,6 +51,7 @@ pub(super) fn lower_auto_accessors<'a>(
     class_scope_id: ScopeId,
     static_binding: Option<&BoundIdentifier<'a>>,
     native_fields: bool,
+    coerce_keys: bool,
     mut record: impl FnMut(
         &mut ArenaBox<'a, PropertyDefinition<'a>>,
         &ArenaBox<'a, MethodDefinition<'a>>,
@@ -120,7 +121,16 @@ pub(super) fn lower_auto_accessors<'a>(
                 counter += 1;
                 let mut key = take_literal_property_key(&mut key, ctx)
                     .unwrap_or_else(|| key.into_expression());
-                if native_fields {
+                // Convert to a property key once before sharing it. Otherwise an object key's
+                // `toString` runs for each method, and they can be defined on different keys.
+                // Legacy decorators (`coerce_keys == false`) keep TypeScript's output.
+                if native_fields
+                    || (coerce_keys
+                        && !matches!(
+                            key,
+                            Expression::StringLiteral(_) | Expression::NumericLiteral(_)
+                        ))
+                {
                     key = helper_call_expr(
                         Helper::ToPropertyKey,
                         ArenaVec::from_value_in(Argument::from(key), ctx),
@@ -129,7 +139,6 @@ pub(super) fn lower_auto_accessors<'a>(
                 }
                 // Share one key between the generated methods:
                 // `accessor [expr]` -> `get [_key = expr]() { ... } set [_key](value) { ... }`.
-                // With native fields, convert to a property key once before sharing it.
                 let (assignment, reference) = if native_fields {
                     create_computed_key_temp_var(key, ctx)
                 } else {
