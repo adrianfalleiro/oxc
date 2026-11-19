@@ -124,8 +124,8 @@ pub struct StandardDecoratorState<'a> {
     /// If `true`, lower standard (TC39) decorators.
     enabled: bool,
     /// Whether loop subtrees contain a class that needs decorator lowering, for nested unbraced
-    /// loops. An entry is removed when it is used. Entries for loops whose body is never searched
-    /// remain; arena addresses are not reused during one transform, so they cannot be misread.
+    /// loops. Only unbraced loop bodies are cached, and each entry is removed when traversal
+    /// visits that body, so the map is empty once the program has been traversed.
     loop_classes: FxHashMap<Address, bool>,
     /// Original key names of `accessor` storage fields initialized with an anonymous class, for
     /// named evaluation. Recorded only for those fields, so this stays small.
@@ -253,6 +253,17 @@ impl<'a> StandardDecoratorState<'a> {
     /// Per-class element tables live in [`ClassDecoratorState`] and die with their class. The
     /// remaining class-keyed maps must be drained by that class's exit.
     pub(crate) fn has_leftover_class_entries(&self) -> bool {
-        !self.named_classes.is_empty() || !self.declaration_rewrites.is_empty()
+        !self.named_classes.is_empty()
+            || !self.declaration_rewrites.is_empty()
+            || !self.loop_classes.is_empty()
+            || !self.accessor_names.is_empty()
+    }
+
+    /// Drop entries keyed by addresses inside the outermost class that just exited.
+    ///
+    /// `accessor_names` is keyed by storage fields, which are only read while their class is
+    /// traversed. Clearing it keeps a freed address from being matched by a later node.
+    pub(crate) fn clear_class_tree_entries(&mut self) {
+        self.accessor_names.clear();
     }
 }
