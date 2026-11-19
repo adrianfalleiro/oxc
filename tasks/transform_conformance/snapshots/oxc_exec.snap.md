@@ -2,9 +2,13 @@ commit: 16a2d671
 
 node: v26.12.1
 
-Passed: 434 of 436 (99.54%)
+Passed: 441 of 444 (99.32%)
 
 Failures:
+
+./fixtures/oxc/babel-plugin-proposal-decorators-test-fixtures-oxc-named-evaluation-exec.test.js
+AssertionError: expected [ '', '__proto__' ] to deeply equal [ '', '' ]
+    at ./tasks/transform_conformance/fixtures/oxc/babel-plugin-proposal-decorators-test-fixtures-oxc-named-evaluation-exec.test.js:1171:17
 
 ./fixtures/oxc/babel-plugin-transform-class-properties-test-fixtures-private-field-resolve-to-method-in-computed-key-exec.test.js
 AssertionError: expected [Function] to throw error including 'Receiver must be an instance of class…' but got 'Private element is not present on thi…'
