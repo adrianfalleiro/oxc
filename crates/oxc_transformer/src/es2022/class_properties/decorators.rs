@@ -22,7 +22,8 @@ use super::{ClassBindings, ClassProperties, IdentIndexMap, PrivateProp};
 pub(super) struct DecoratorBodyEntry<'a> {
     pub state: Option<ClassDecoratorState<'a>>,
     pub static_accessor_binding: Option<BoundIdentifier<'a>>,
-    pub has_auto_accessor: bool,
+    /// See [`ClassDetails::per_evaluation_state`](super::ClassDetails::per_evaluation_state).
+    pub per_evaluation_state: bool,
 }
 
 impl<'a> DecoratorBodyEntry<'a> {
@@ -30,20 +31,8 @@ impl<'a> DecoratorBodyEntry<'a> {
         self.state.is_some()
     }
 
-    /// Decorated classes and lowered auto-accessors also own their static blocks.
-    pub fn lowers_static_blocks(&self) -> bool {
-        self.is_decorated() || self.has_auto_accessor
-    }
-
-    /// Whether per-class temporaries are block-scoped, so each evaluation of the class gets its
-    /// own, e.g. in a loop body. Decorated classes and lowered auto-accessors need this because
-    /// their storage and decorator state belong to one class evaluation.
-    fn block_scoped_temps(&self) -> bool {
-        self.lowers_static_blocks()
-    }
-
     pub fn create_binding(&self, name: &str, ctx: &mut TraverseCtx<'a>) -> BoundIdentifier<'a> {
-        if self.block_scoped_temps() {
+        if self.per_evaluation_state {
             ctx.generate_uid(name, ctx.current_block_scope_id(), SymbolFlags::BlockScopedVariable)
         } else {
             ctx.generate_uid_in_current_hoist_scope(name)
@@ -57,7 +46,7 @@ impl<'a> DecoratorBodyEntry<'a> {
     ) -> (ScopeId, SymbolFlags) {
         if !in_class_sequence {
             (ctx.current_block_scope_id(), SymbolFlags::Function)
-        } else if self.block_scoped_temps() {
+        } else if self.per_evaluation_state {
             (ctx.current_block_scope_id(), SymbolFlags::BlockScopedVariable)
         } else {
             (ctx.current_hoist_scope_id(), SymbolFlags::FunctionScopedVariable)
@@ -69,7 +58,7 @@ impl<'a> DecoratorBodyEntry<'a> {
         name: Option<&BoundIdentifier<'a>>,
         ctx: &mut TraverseCtx<'a>,
     ) -> BoundIdentifier<'a> {
-        if self.block_scoped_temps() {
+        if self.per_evaluation_state {
             self.create_binding(name.map_or("Class", |binding| binding.name.as_str()), ctx)
         } else {
             ClassBindings::create_temp_binding(name, ctx.current_hoist_scope_id(), ctx)
@@ -77,7 +66,7 @@ impl<'a> DecoratorBodyEntry<'a> {
     }
 
     pub fn declare_temp(&self, binding: &BoundIdentifier<'a>, ctx: &mut TraverseCtx<'a>) {
-        if self.block_scoped_temps() {
+        if self.per_evaluation_state {
             ctx.state.var_declarations.insert_let(binding, None, &ctx.ast);
         } else {
             ctx.state.var_declarations.insert_var(binding, &ctx.ast);
@@ -130,6 +119,7 @@ impl<'a> ClassProperties<'a> {
         let standard = self.decorator_state.enabled();
         let is_decorated = standard && lowering.has_decorators();
         let has_auto_accessor = standard && lowering.has_auto_accessor();
+        let per_evaluation_state = standard && lowering.handles_standard_decorators();
         if standard {
             for element in &mut body.body {
                 let (key, computed, value) = match element {
@@ -154,7 +144,7 @@ impl<'a> ClassProperties<'a> {
             return DecoratorBodyEntry {
                 state: None,
                 static_accessor_binding: None,
-                has_auto_accessor,
+                per_evaluation_state,
             };
         }
         let static_accessor_binding = (has_auto_accessor
@@ -171,7 +161,7 @@ impl<'a> ClassProperties<'a> {
             StandardDecoratorState::coerce_decorated_keys(body, ctx);
         }
         let mut tables = ClassDecoratorTables::default();
-        if is_decorated || has_auto_accessor {
+        if per_evaluation_state {
             self.decorator_state.lower_auto_accessors(
                 body,
                 class_scope_id,
@@ -187,7 +177,7 @@ impl<'a> ClassProperties<'a> {
             None
         };
 
-        DecoratorBodyEntry { state, static_accessor_binding, has_auto_accessor }
+        DecoratorBodyEntry { state, static_accessor_binding, per_evaluation_state }
     }
 
     pub(super) fn push_instance_method_initializers(
@@ -413,14 +403,12 @@ impl<'a> ClassProperties<'a> {
     ) -> Option<Expression<'a>> {
         let details = self.current_class();
         let is_decorated = details.decorators.is_some();
-        let mut inferred_name = if !details.is_declaration
-            && class.id.is_none()
-            && (is_decorated || details.has_auto_accessor)
-        {
-            self.decorator_state.infer_class_expression_name(class.unstable_address(), ctx)
-        } else {
-            None
-        };
+        let mut inferred_name =
+            if !details.is_declaration && class.id.is_none() && details.per_evaluation_state {
+                self.decorator_state.infer_class_expression_name(class.unstable_address(), ctx)
+            } else {
+                None
+            };
         if is_decorated {
             let name = if self.current_class().is_declaration {
                 (class.id.is_none()
