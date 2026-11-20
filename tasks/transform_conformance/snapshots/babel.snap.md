@@ -1,6 +1,6 @@
 commit: 16a2d671
 
-Passed: 767/1190
+Passed: 772/1190
 
 # All Passed:
 * babel-plugin-transform-logical-assignment-operators
@@ -186,7 +186,7 @@ x Output mismatch
 x Output mismatch
 
 
-# babel-plugin-transform-class-properties (208/269)
+# babel-plugin-transform-class-properties (213/269)
 * assumption-constantSuper/complex-super-class/input.js
 x Output mismatch
 
@@ -205,9 +205,6 @@ x Output mismatch
 * assumption-setPublicClassFields/computed/input.js
 x Output mismatch
 
-* assumption-setPublicClassFields/static-infer-name/input.js
-x Output mismatch
-
 * assumption-setPublicClassFields/static-super-loose/input.js
 x Output mismatch
 
@@ -224,16 +221,34 @@ x Output mismatch
 x Output mismatch
 
 * class-name-tdz/typescript-type/input.ts
-x Output mismatch
+
+  x Lowering standard decorators needs the `runInitializers` helper, which
+  | only `@oxc-project/runtime` provides. Babel's `babelHelpers` object
+  | (external helper mode) does not define it.
+  help: Use the runtime helper mode to import helpers from `@oxc-project/
+        runtime`.
+
 
 * nested-class/super-call-in-decorator/input.js
-x Output mismatch
+
+  x Lowering standard decorators needs the `runInitializers` helper, which
+  | only `@oxc-project/runtime` provides. Babel's `babelHelpers` object
+  | (external helper mode) does not define it.
+  help: Use the runtime helper mode to import helpers from `@oxc-project/
+        runtime`.
+
 
 * nested-class/super-property-in-accessor-key/input.js
 x Output mismatch
 
 * nested-class/super-property-in-decorator/input.js
-x Output mismatch
+
+  x Lowering standard decorators needs the `runInitializers` helper, which
+  | only `@oxc-project/runtime` provides. Babel's `babelHelpers` object
+  | (external helper mode) does not define it.
+  help: Use the runtime helper mode to import helpers from `@oxc-project/
+        runtime`.
+
 
 * private/class-shadow-builtins/input.mjs
 x Output mismatch
@@ -257,9 +272,6 @@ x Output mismatch
 x Output mismatch
 
 * private/parenthesized-optional-member-call-with-transform/input.js
-x Output mismatch
-
-* private/static-infer-name/input.js
 x Output mismatch
 
 * private/static-shadow/input.js
@@ -316,9 +328,6 @@ x Output mismatch
 * private-loose/parenthesized-optional-member-call-with-transform/input.js
 x Output mismatch
 
-* private-loose/static-infer-name/input.js
-x Output mismatch
-
 * public/arrow-this-without-transform/input.js
 x Expected transform error, but transformation succeeded: Unable to transform arrow inside class property
 
@@ -329,9 +338,6 @@ x Output mismatch
 x Output mismatch
 
 * public/delete-super-property/input.js
-x Output mismatch
-
-* public/static-infer-name/input.js
 x Output mismatch
 
 * public/super-destructuring-array-pattern/input.js
@@ -353,9 +359,6 @@ x Expected transform error, but transformation succeeded: Unable to transform ar
 x Output mismatch
 
 * public-loose/computed/input.js
-x Output mismatch
-
-* public-loose/static-infer-name/input.js
 x Output mismatch
 
 * public-loose/static-super/input.js
