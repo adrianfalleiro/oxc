@@ -1,7 +1,7 @@
 parser_misc Summary:
-AST Parsed     : 160/160 (100.00%)
-Positive Passed: 160/160 (100.00%)
-Negative Passed: 298/298 (100.00%)
+AST Parsed     : 164/164 (100.00%)
+Positive Passed: 164/164 (100.00%)
+Negative Passed: 300/300 (100.00%)
 
   × TS(1029): 'declare' modifier must precede 'abstract' modifier.
    ╭─[misc/fail/abstract-declare-property-order.ts:2:14]
@@ -5666,6 +5666,37 @@ Negative Passed: 298/298 (100.00%)
    ╭─[misc/fail/type-arguments-in-js.js:1:18]
  1 │ class A extends B<C> {}
    ·                  ───
+   ╰────
+
+  × Unexpected token
+   ╭─[misc/fail/unambiguous-await-fatal-module.js:3:3]
+ 2 │ export {};
+ 3 │ f(;
+   ·   ─
+   ╰────
+
+  × TS(8002): 'import ... =' can only be used in TypeScript files.
+   ╭─[misc/fail/unambiguous-await-fatal-script.js:2:1]
+ 1 │ await();
+ 2 │ import a = b;
+   · ─────────────
+ 3 │ import('c');
+   ╰────
+  help: TypeScript transforms 'import ... =' to 'const ... ='
+
+  × Unexpected token
+   ╭─[misc/fail/unambiguous-await-fatal-script.js:4:3]
+ 3 │ import('c');
+ 4 │ f(;
+   ·   ─
+   ╰────
+
+  × Cannot use import statement outside a module
+   ╭─[misc/fail/unambiguous-await-fatal-script.js:2:1]
+ 1 │ await();
+ 2 │ import a = b;
+   · ──────
+ 3 │ import('c');
    ╰────
 
   × TS(1039): Initializers are not allowed in ambient contexts.
