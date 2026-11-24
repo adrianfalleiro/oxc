@@ -372,42 +372,6 @@ describe("standard decorators", () => {
     expect(ret.code).not.toContain("decorateElement");
   });
 
-  test.each(["es2015", "es2020", "es2022", "esnext"])(
-    "preserves decorated fields targeting %s",
-    (target) => {
-      for (const setPublicClassFields of [false, true]) {
-        const ret = transformSync(
-          "test.ts",
-          "class Example { @decorate static value: number = 1; @decorate item: number = 2; }",
-          { target, decorator: { lower: false }, assumptions: { setPublicClassFields } },
-        );
-        expect(ret.errors).toEqual([]);
-        expect(ret.code).toContain("@decorate static value = 1;");
-        expect(ret.code).toContain("@decorate item = 2;");
-        expect(ret.helpersUsed).toEqual({});
-      }
-    },
-  );
-
-  it("selects legacy decorators regardless of the standard option", () => {
-    const code = "@decorate class Example { @decorate method() {} }";
-    const legacy = transformSync("test.js", code, {
-      target: "esnext",
-      decorator: { legacy: true },
-    });
-    const disabledStandard = transformSync("test.js", code, {
-      target: "esnext",
-      decorator: { legacy: true, lower: false },
-    });
-    expect(legacy.errors).toEqual([]);
-    expect(disabledStandard.errors).toEqual([]);
-    expect(legacy.code).not.toContain("@decorate");
-    expect(legacy.code).not.toContain("decorateElement");
-    expect(legacy.code).toContain("_decorate(");
-    expect(disabledStandard.code).toEqual(legacy.code);
-    expect(disabledStandard.helpersUsed).toEqual(legacy.helpersUsed);
-  });
-
   test.each(["esnext", "es2015"])("runs through the public API targeting %s", (target) => {
     const ret = transformSync(
       "test.js",

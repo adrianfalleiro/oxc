@@ -2,7 +2,7 @@ commit: 51225612
 
 node: v26.12.1
 
-Passed: 494 of 602 (82.06%)
+Passed: 495 of 602 (82.23%)
 
 Failures:
 
@@ -62,14 +62,6 @@ TypeError: _superPropGet(...) is not a function
     at [Symbol.iterator].next (<anonymous>)
     at ./tasks/transform_conformance/fixtures/babel/babel-plugin-proposal-decorators-test-fixtures-2023-11-classes--to-es2015-replacement-static-property-super-exec.test.js:66:14
     at ./tasks/transform_conformance/fixtures/babel/babel-plugin-proposal-decorators-test-fixtures-2023-11-classes--to-es2015-replacement-static-property-super-exec.test.js:29:7
-
-./fixtures/babel/babel-plugin-proposal-decorators-test-fixtures-2023-11-classes-expressions-named-evaluation-exec.test.js
-AssertionError: expected [ '', '__proto__' ] to deeply equal [ '', '' ]
-    at ./tasks/transform_conformance/fixtures/babel/babel-plugin-proposal-decorators-test-fixtures-2023-11-classes-expressions-named-evaluation-exec.test.js:1106:16
-    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async VitestModuleRunner.directRequest (./node_modules/vite/dist/node/module-runner.js:1288:59)
-    at async VitestModuleRunner.cachedRequest (./node_modules/vite/dist/node/module-runner.js:1195:73)
-    at async VitestModuleRunner.import (./node_modules/vite/dist/node/module-runner.js:1150:10)
 
 ./fixtures/babel/babel-plugin-proposal-decorators-test-fixtures-2023-11-classes-replacement-static-block-super-exec.test.js
 TypeError: _superPropGet(...) is not a function

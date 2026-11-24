@@ -97,21 +97,32 @@ fn standard_decorators_opt_out() {
 
 #[test]
 fn standard_decorators_follow_target() {
-    let source = "@decorate class Example { @decorate method() {} }";
+    let source = "@decorate class Example { @decorate method() {} accessor value = 1; } class Plain { accessor value = 2; }";
+    let plain = "class Plain { value = 1; #private = 2; read() { return this.#private; } static { effect(); } }";
 
-    // An unspecified target and `esnext` preserve proposal syntax.
-    for options in [TransformOptions::default(), TransformOptions::from(ESTarget::ESNext)] {
-        for decorator in [
-            DecoratorOptions::default(),
-            DecoratorOptions { lower: Some(false), ..DecoratorOptions::default() },
-        ] {
-            let options = TransformOptions { decorator, ..options.clone() };
-            let preserved = test(source, &options).unwrap();
-            assert!(preserved.contains("@decorate"));
-            assert!(!preserved.contains("decorateElement"));
-        }
+    // An unspecified target and `esnext` preserve proposal syntax; concrete targets lower it.
+    for (options, lowers) in [
+        (TransformOptions::default(), false),
+        (TransformOptions::from_target("esnext").unwrap(), false),
+        (TransformOptions::from_target("es2015").unwrap(), true),
+        (TransformOptions::from_target("safari16").unwrap(), true),
+        (TransformOptions::from_target("chrome999").unwrap(), true),
+    ] {
+        assert_eq!(options.env.standard_decorators, lowers);
+        let output = test(source, &options).unwrap();
+        assert_eq!(output.contains("@decorate"), !lowers);
+        assert_eq!(output.contains("accessor value"), !lowers);
+        assert_eq!(output.contains("decorateElement"), lowers);
+        // `lower: false` preserves the syntax and leaves other classes as the target lowers them.
+        let mut preserve = options.clone();
+        preserve.decorator.lower = Some(false);
+        let preserved = test(source, &preserve).unwrap();
+        assert!(preserved.contains("@decorate"));
+        assert!(!preserved.contains("decorateElement"));
+        assert_eq!(test(plain, &options), test(plain, &preserve));
     }
 
+    let source = "@decorate class Example { @decorate method() {} }";
     let explicit = TransformOptions {
         decorator: serde_json::from_str::<DecoratorOptions>(r#"{"lower":true}"#).unwrap(),
         ..TransformOptions::from(ESTarget::ESNext)
@@ -129,29 +140,6 @@ fn standard_decorators_follow_target() {
     assert!(!legacy_output.contains("decorateElement"));
     legacy_options.decorator.lower = Some(false);
     assert_eq!(test(source, &legacy_options), Ok(legacy_output));
-}
-
-#[test]
-fn standard_decorators_compat_targets() {
-    let source =
-        "@decorate class Example { accessor value = 1; } class Plain { accessor value = 2; }";
-    let plain = "class Plain { value = 1; #private = 2; read() { return this.#private; } static { effect(); } }";
-    for (options, lowers) in [
-        (TransformOptions::default(), false),
-        (TransformOptions::from_target("esnext").unwrap(), false),
-        (TransformOptions::from_target("es2015").unwrap(), true),
-        (TransformOptions::from_target("safari16").unwrap(), true),
-        (TransformOptions::from_target("chrome999").unwrap(), true),
-    ] {
-        assert_eq!(options.env.standard_decorators, lowers);
-        let output = test(source, &options).unwrap();
-        assert_eq!(output.contains("@decorate"), !lowers);
-        assert_eq!(output.contains("accessor value"), !lowers);
-        assert_eq!(output.contains("decorateElement"), lowers);
-        let mut preserve_options = options.clone();
-        preserve_options.decorator.lower = Some(false);
-        assert_eq!(test(plain, &options), test(plain, &preserve_options));
-    }
 }
 
 #[test]
