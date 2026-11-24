@@ -76,72 +76,16 @@ impl<'a> StandardDecoratorState<'a> {
         statement: &mut Statement<'a>,
         ctx: &mut TraverseCtx<'a>,
     ) {
-        struct DecoratedClassFinder<'s, 'a> {
-            found: bool,
-            loop_classes: &'s mut FxHashMap<Address, bool>,
-            state: &'s TransformState<'a>,
-        }
-        impl<'a> Visit<'a> for DecoratedClassFinder<'_, 'a> {
-            fn visit_statement(&mut self, statement: &Statement<'a>) {
-                // Only unbraced loop bodies are visited by `wrap_loop_body_if_decorated`, which
-                // consumes the cached result. Braced loops are not cached, so nothing is left over.
-                let loop_address = match statement {
-                    Statement::ForStatement(s) => Some(&s.body),
-                    Statement::ForInStatement(s) => Some(&s.body),
-                    Statement::ForOfStatement(s) => Some(&s.body),
-                    Statement::WhileStatement(s) => Some(&s.body),
-                    Statement::DoWhileStatement(s) => Some(&s.body),
-                    _ => None,
-                }
-                .filter(|body| !matches!(body, Statement::BlockStatement(_)))
-                .map(|_| statement.address());
-                if let Some(address) = loop_address
-                    && let Some(found) = self.loop_classes.remove(&address)
-                {
-                    self.found |= found;
-                    return;
-                }
-
-                let found_before = mem::take(&mut self.found);
-                oxc_ast_visit::walk::walk_statement(self, statement);
-                if let Some(address) = loop_address {
-                    // Reuse both positive and negative results for nested unbraced loops.
-                    self.loop_classes.insert(address, self.found);
-                }
-                self.found |= found_before;
-            }
-
-            fn visit_class(&mut self, class: &Class<'a>) {
-                self.found |=
-                    self.state.class_lowering_before_entry(class).handles_standard_decorators();
-                if !self.found {
-                    oxc_ast_visit::walk::walk_class(self, class);
-                }
-            }
-
-            // A class inside a function gets its state from that function's body on each call.
-            fn visit_function(&mut self, _: &Function<'a>, _: ScopeFlags) {}
-            fn visit_arrow_function_expression(&mut self, _: &ArrowFunctionExpression<'a>) {}
-        }
         // A loop nested in an unbraced loop body was already searched with its parent.
-        if let Some(found) = self.loop_classes.remove(&ctx.parent().address()) {
-            if found {
-                let scope_id = ctx.insert_scope_below_statement(statement, ScopeFlags::empty());
-                let body = statement.take_in(ctx);
-                *statement =
-                    Statement::new_block_statement_with_scope_id(SPAN, [body], scope_id, ctx);
-            }
-            return;
-        }
-        let found = {
+        let found = self.loop_classes.remove(&ctx.parent().address()).unwrap_or_else(|| {
             let mut finder = DecoratedClassFinder {
                 found: false,
-                loop_classes: &mut self.loop_classes,
+                loop_classes: Some(&mut self.loop_classes),
                 state: &ctx.state,
             };
             finder.visit_statement(statement);
             finder.found
-        };
+        });
         if found {
             let scope_id = ctx.insert_scope_below_statement(statement, ScopeFlags::empty());
             let body = statement.take_in(ctx);
@@ -244,22 +188,8 @@ impl<'a> StandardDecoratorState<'a> {
     }
 
     fn header_has_decorated_class(expression: &Expression<'a>, ctx: &TraverseCtx<'a>) -> bool {
-        struct Finder<'s, 'a> {
-            found: bool,
-            state: &'s TransformState<'a>,
-        }
-        impl<'a> Visit<'a> for Finder<'_, 'a> {
-            fn visit_class(&mut self, class: &Class<'a>) {
-                self.found |=
-                    self.state.class_lowering_before_entry(class).handles_standard_decorators();
-                if !self.found {
-                    oxc_ast_visit::walk::walk_class(self, class);
-                }
-            }
-            fn visit_function(&mut self, _: &Function<'a>, _: ScopeFlags) {}
-            fn visit_arrow_function_expression(&mut self, _: &ArrowFunctionExpression<'a>) {}
-        }
-        let mut finder = Finder { found: false, state: &ctx.state };
+        let mut finder =
+            DecoratedClassFinder { found: false, loop_classes: None, state: &ctx.state };
         finder.visit_expression(expression);
         finder.found
     }
@@ -785,4 +715,61 @@ impl<'a> ClassDecoratorTables<'a> {
             }
         }
     }
+}
+
+/// Finds a class that needs standard decorator lowering, outside nested functions.
+///
+/// With `loop_classes`, it also caches the result for each unbraced loop body it searches.
+struct DecoratedClassFinder<'s, 'a> {
+    found: bool,
+    loop_classes: Option<&'s mut FxHashMap<Address, bool>>,
+    state: &'s TransformState<'a>,
+}
+
+impl<'a> Visit<'a> for DecoratedClassFinder<'_, 'a> {
+    fn visit_statement(&mut self, statement: &Statement<'a>) {
+        let Some(loop_classes) = self.loop_classes.as_deref_mut() else {
+            oxc_ast_visit::walk::walk_statement(self, statement);
+            return;
+        };
+        // Only unbraced loop bodies are visited by `wrap_loop_body_if_decorated`, which
+        // consumes the cached result. Braced loops are not cached, so nothing is left over.
+        let loop_address = match statement {
+            Statement::ForStatement(s) => Some(&s.body),
+            Statement::ForInStatement(s) => Some(&s.body),
+            Statement::ForOfStatement(s) => Some(&s.body),
+            Statement::WhileStatement(s) => Some(&s.body),
+            Statement::DoWhileStatement(s) => Some(&s.body),
+            _ => None,
+        }
+        .filter(|body| !matches!(body, Statement::BlockStatement(_)))
+        .map(|_| statement.address());
+        if let Some(address) = loop_address
+            && let Some(found) = loop_classes.remove(&address)
+        {
+            self.found |= found;
+            return;
+        }
+
+        let found_before = mem::take(&mut self.found);
+        oxc_ast_visit::walk::walk_statement(self, statement);
+        if let Some(address) = loop_address {
+            // Reuse both positive and negative results for nested unbraced loops.
+            if let Some(loop_classes) = self.loop_classes.as_deref_mut() {
+                loop_classes.insert(address, self.found);
+            }
+        }
+        self.found |= found_before;
+    }
+
+    fn visit_class(&mut self, class: &Class<'a>) {
+        self.found |= self.state.class_lowering_before_entry(class).handles_standard_decorators();
+        if !self.found {
+            oxc_ast_visit::walk::walk_class(self, class);
+        }
+    }
+
+    // A class inside a function gets its state from that function's body on each call.
+    fn visit_function(&mut self, _: &Function<'a>, _: ScopeFlags) {}
+    fn visit_arrow_function_expression(&mut self, _: &ArrowFunctionExpression<'a>) {}
 }
