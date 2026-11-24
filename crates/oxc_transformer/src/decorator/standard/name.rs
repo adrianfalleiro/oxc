@@ -3,7 +3,6 @@
 use oxc_allocator::{Address, ArenaVec, GetAddress, TakeIn};
 use oxc_ast::ast::*;
 use oxc_span::SPAN;
-use oxc_str::JSStr;
 use oxc_traverse::Ancestor;
 
 use crate::{
@@ -12,20 +11,13 @@ use crate::{
         helper_loader::{Helper, helper_call_expr},
     },
     context::TraverseCtx,
-    utils::class_name::contextual_class_name,
+    decorator::accessor::static_key_name,
+    utils::{ast_builder::create_to_property_key, class_name::contextual_class_name},
 };
 
 use super::StandardDecoratorState;
 
 impl<'a> StandardDecoratorState<'a> {
-    /// Name of a non-computed property key, for named evaluation of anonymous classes.
-    pub(super) fn static_key_name(
-        key: &PropertyKey<'a>,
-        ctx: &TraverseCtx<'a>,
-    ) -> Option<JSStr<'a>> {
-        super::super::accessor::static_key_name(key, ctx)
-    }
-
     /// Preserve named evaluation before a property initializer is moved or its key is rewritten.
     pub(crate) fn capture_class_initializer_name(
         &mut self,
@@ -45,11 +37,7 @@ impl<'a> StandardDecoratorState<'a> {
         }
         let name = if computed {
             let key_expr = key.as_expression_mut().unwrap();
-            let value = helper_call_expr(
-                Helper::ToPropertyKey,
-                ArenaVec::from_value_in(Argument::from(key_expr.take_in(ctx)), ctx),
-                ctx,
-            );
+            let value = create_to_property_key(key_expr.take_in(ctx), ctx);
             let (assignment, reference) = create_computed_key_temp_var(value, ctx);
             *key_expr = assignment;
             reference
@@ -72,9 +60,7 @@ impl<'a> StandardDecoratorState<'a> {
         }
         // A prototype setter does not perform named evaluation.
         let computed = prop.key.is_computed();
-        if !computed
-            && Self::static_key_name(&prop.key, ctx).is_some_and(|name| name == "__proto__")
-        {
+        if !computed && prop.key.is_specific_literal_name("__proto__") {
             return;
         }
         self.capture_class_initializer_name(&mut prop.key, computed, &prop.value, ctx);
@@ -95,11 +81,7 @@ impl<'a> StandardDecoratorState<'a> {
         let name = match parent {
             Ancestor::PropertyDefinitionValue(prop) => {
                 self.accessor_names.get(&parent.address()).copied().or_else(|| {
-                    if prop.key().is_computed() {
-                        None
-                    } else {
-                        Self::static_key_name(prop.key(), ctx)
-                    }
+                    if prop.key().is_computed() { None } else { static_key_name(prop.key(), ctx) }
                 })
             }
             _ => contextual_class_name(&parent).map(Into::into),

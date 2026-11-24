@@ -7,7 +7,22 @@ use oxc_span::{GetSpan, SPAN};
 use oxc_str::{Ident, static_ident};
 use oxc_traverse::BoundIdentifier;
 
-use crate::context::TraverseCtx;
+use crate::{
+    common::helper_loader::{Helper, helper_call_expr},
+    context::TraverseCtx,
+};
+
+/// `_toPropertyKey(value)`
+pub fn create_to_property_key<'a>(
+    value: Expression<'a>,
+    ctx: &mut TraverseCtx<'a>,
+) -> Expression<'a> {
+    helper_call_expr(
+        Helper::ToPropertyKey,
+        ArenaVec::from_value_in(Argument::from(value), ctx),
+        ctx,
+    )
+}
 
 /// Convert a concise arrow body to a block body with an explicit return, and return the block.
 pub fn arrow_function_body_as_function_body_mut<'a, 'b>(

@@ -10,29 +10,25 @@ use oxc_traverse::BoundIdentifier;
 use rustc_hash::FxHashSet;
 
 use crate::{
-    common::{
-        computed_key::create_computed_key_temp_var,
-        duplicate::duplicate_expression,
-        helper_loader::{Helper, helper_call_expr},
-    },
+    common::{computed_key::create_computed_key_temp_var, duplicate::duplicate_expression},
     context::TraverseCtx,
     utils::{
-        ast_builder::{create_accessor_method, take_literal_property_key},
+        ast_builder::{create_accessor_method, create_to_property_key, take_literal_property_key},
         decorated_class::is_auto_accessor,
     },
 };
 
+/// Name of a property key for named evaluation: `x`, `"x"`, `1`, `#x` and a computed `["x"]`.
 pub(super) fn static_key_name<'a>(
     key: &PropertyKey<'a>,
     ctx: &TraverseCtx<'a>,
 ) -> Option<JSStr<'a>> {
     match key {
-        PropertyKey::StaticIdentifier(ident) => Some(ident.name.into()),
         PropertyKey::StringLiteral(lit) => Some(lit.value),
         PropertyKey::PrivateIdentifier(ident) => {
             Some(Str::from_strs_array_in(["#", &ident.name], ctx).into())
         }
-        _ => None,
+        _ => key.literal_name().map(|name| name.into_js_str_in(ctx)),
     }
 }
 
@@ -130,11 +126,7 @@ pub(super) fn lower_auto_accessors<'a>(
                             Expression::StringLiteral(_) | Expression::NumericLiteral(_)
                         ))
                 {
-                    key = helper_call_expr(
-                        Helper::ToPropertyKey,
-                        ArenaVec::from_value_in(Argument::from(key), ctx),
-                        ctx,
-                    );
+                    key = create_to_property_key(key, ctx);
                 }
                 // Share one key between the generated methods:
                 // `accessor [expr]` -> `get [_key = expr]() { ... } set [_key](value) { ... }`.

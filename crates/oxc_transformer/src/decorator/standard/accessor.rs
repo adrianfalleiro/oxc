@@ -12,7 +12,10 @@ use oxc_traverse::{Ancestor, BoundIdentifier};
 use crate::{
     common::helper_loader::{Helper, helper_call_expr},
     context::TraverseCtx,
-    utils::ast_builder::wrap_expression_in_arrow_function_iife,
+    utils::{
+        ast_builder::wrap_expression_in_arrow_function_iife,
+        decorated_class::class_body_has_static_auto_accessor,
+    },
 };
 
 use super::StandardDecoratorState;
@@ -63,14 +66,10 @@ impl<'a> StandardDecoratorState<'a> {
         class: &mut Class<'a>,
         ctx: &mut TraverseCtx<'a>,
     ) {
-        let lowering = ctx.state.class_lowering_of(class.scope_id());
-        if !lowering.is_native()
-            || class.declare
-            || class.id.is_some()
+        // The caller only passes native classes.
+        if class.id.is_some()
             || (!self.named_classes.contains_key(&class.unstable_address())
-                && !class.body.body.iter().any(|element| {
-                    matches!(element, ClassElement::AccessorProperty(prop) if prop.r#static && !prop.r#type.is_abstract())
-                }))
+                && !class_body_has_static_auto_accessor(&class.body))
         {
             return;
         }
