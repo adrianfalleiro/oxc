@@ -1375,9 +1375,14 @@ impl Runtime {
         // If import plugin is enabled.
         if let Some(resolver) = &self.resolver {
             // Retrieve all dependent modules from this module.
+            let dynamic_only_requests = module_record
+                .dynamic_requested_modules
+                .keys()
+                .filter(|specifier| !module_record.requested_modules.contains_key(*specifier));
             resolved_module_requests = module_record
                 .requested_modules
                 .keys()
+                .chain(dynamic_only_requests)
                 .filter_map(|specifier| {
                     let resolution = resolver.resolve_file(path, specifier).ok()?;
                     Some(ResolvedModuleRequest {

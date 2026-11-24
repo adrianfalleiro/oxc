@@ -133,11 +133,14 @@ impl Rule for NoBarrelFile {
 }
 
 fn count_loaded_modules(module_record: &ModuleRecord) -> Option<u32> {
-    if module_record.loaded_modules().is_empty() {
+    // Only static imports load a module up front, so `import()` edges are not counted.
+    let is_static = |key: &str, parent: &ModuleRecord| parent.requested_modules.contains_key(key);
+    if !module_record.loaded_modules().keys().any(|key| is_static(key, module_record)) {
         return None;
     }
     Some(
         ModuleGraphVisitorBuilder::default()
+            .filter(|(key, _), parent| is_static(key, parent))
             .visit_fold(0, module_record, |acc, _, _| VisitFoldWhile::Next(acc + 1))
             .result,
     )
@@ -167,15 +170,19 @@ fn test() {
 
     let settings = Some(serde_json::json!([{"threshold": 1}]));
 
-    let fail = vec![(
-        r#"
+    let fail = vec![
+        (
+            r#"
 export * from "./deep/a.js";
 export * from "./deep/b.js";
 export * from "./deep/c.js";
 export * from "./deep/d.js";
         "#,
-        settings,
-    )];
+            settings,
+        ),
+        // `dynamic.js` only has an `import()`, which loads nothing up front: no "0 modules" label.
+        (r#"export * from "./deep/dynamic.js";"#, Some(serde_json::json!([{"threshold": 0}]))),
+    ];
 
     Tester::new(NoBarrelFile::NAME, NoBarrelFile::PLUGIN, pass, fail)
         .change_rule_path("index.ts")

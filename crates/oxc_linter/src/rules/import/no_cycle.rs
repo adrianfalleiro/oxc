@@ -102,6 +102,10 @@ declare_oxc_lint!(
     /// This includes cycles of depth 1 (imported module imports me), up to an effectively
     /// infinite value when the `maxDepth` option is not set.
     ///
+    /// Dynamic `import()` calls with a string literal specifier are part of the dependency
+    /// graph, so cycles through them are reported unless `allowUnsafeDynamicCyclicDependency`
+    /// is set.
+    ///
     /// ### Why is this bad?
     ///
     /// Dependency cycles lead to confusing architectures where bugs become hard to find.
@@ -171,13 +175,14 @@ impl Rule for NoCycle {
                 continue;
             }
 
-            let requested_module = module_record.requested_modules[key][0];
-            let span = requested_module.span;
+            let Some((span, is_import)) = self.counted_request(key, module_record) else {
+                continue;
+            };
             stack.clear();
             stack.push((key.clone(), Arc::clone(&loaded_module_record)));
 
             if loaded_module_record.resolved_absolute_path == *needle {
-                ctx.diagnostic(self_referencing_cycle_diagnostic(span, requested_module.is_import));
+                ctx.diagnostic(self_referencing_cycle_diagnostic(span, is_import));
                 continue;
             }
 
@@ -263,6 +268,48 @@ impl NoCycle {
         false
     }
 
+    /// The request that makes `key` an edge of `parent` for this rule, as its span and whether it
+    /// is an import (not a re-export). A static request counts unless `ignoreTypes` is set and all
+    /// of them are type-only; otherwise an `import()` counts unless
+    /// `allowUnsafeDynamicCyclicDependency` is set. `None` when neither counts.
+    fn counted_request(&self, key: &str, parent: &ModuleRecord) -> Option<(Span, bool)> {
+        if let Some(requested_modules) = parent.requested_modules.get(key)
+            && !(self.ignore_types && Self::is_type_only_request(key, parent))
+        {
+            return Some((requested_modules[0].span, requested_modules[0].is_import));
+        }
+        if self.allow_unsafe_dynamic_cyclic_dependency {
+            return None;
+        }
+        parent.dynamic_requested_modules.get(key).map(|spans| (spans[0], true))
+    }
+
+    /// Whether `parent` imports or re-exports `key` and every such entry is type-only.
+    fn is_type_only_request(key: &str, parent: &ModuleRecord) -> bool {
+        // Equivalent to collecting both entry lists and testing `!is_empty() && all(is_type)`,
+        // without materializing either `Vec`. This runs once per graph edge considered.
+        let mut types = parent
+            .import_entries
+            .iter()
+            .filter(|entry| entry.module_request.name() == key)
+            .map(|entry| entry.is_type)
+            .chain(
+                parent
+                    .indirect_export_entries
+                    .iter()
+                    .filter(|entry| {
+                        entry
+                            .module_request
+                            .as_ref()
+                            .is_some_and(|module_request| module_request.name() == key)
+                    })
+                    .map(|entry| entry.is_type),
+            )
+            .peekable();
+
+        types.peek().is_some() && types.all(|is_type| is_type)
+    }
+
     fn should_traverse_module(
         &self,
         key: &CompactStr,
@@ -279,31 +326,8 @@ impl NoCycle {
             return false;
         }
 
-        if self.ignore_types {
-            // Equivalent to collecting both entry lists and testing `!is_empty() && all(is_type)`,
-            // without materializing either `Vec`. This runs once per graph edge considered.
-            let mut types = parent
-                .import_entries
-                .iter()
-                .filter(|entry| entry.module_request.name() == key)
-                .map(|entry| entry.is_type)
-                .chain(
-                    parent
-                        .indirect_export_entries
-                        .iter()
-                        .filter(|entry| {
-                            entry
-                                .module_request
-                                .as_ref()
-                                .is_some_and(|module_request| module_request.name() == key)
-                        })
-                        .map(|entry| entry.is_type),
-                )
-                .peekable();
-
-            if types.peek().is_some() && types.all(|is_type| is_type) {
-                return false;
-            }
+        if self.counted_request(key, parent).is_none() {
+            return false;
         }
 
         // Allow self referencing named export.
@@ -355,6 +379,8 @@ fn test() {
         (r#"import { foo } from "./es6/depth-two""#, Some(json!([{"maxDepth":1}]))),
         (r#"import { foo, bar } from "./es6/depth-two""#, Some(json!([{"maxDepth":1}]))),
         (r#"import("./es6/depth-two").then(function({ foo }) {})"#, Some(json!([{"maxDepth":1}]))),
+        // Like `eslint-plugin-import`, template literal specifiers are not followed.
+        (r"import(`./es6/depth-one`)", None),
         // parser: parsers.BABEL_OLD
         // (r#"import type { FooType } from "./es6/depth-one""#, None),
         // (r#"import type { FooType, BarType } from "./es6/depth-one""#, None),
@@ -494,17 +520,17 @@ fn test() {
         //     r#"import { foo } from "./es6/depth-two""#,
         //     Some(json!([{"allowUnsafeDynamicCyclicDependency":true,"maxDepth":"∞"}])),
         // ),
-        // TODO: dynamic import
-        // (r#"import("./es6/depth-three-star")"#, None),
-        // (r#"import("./es6/depth-three-indirect")"#, None),
+        (r#"import("./es6/depth-three-star")"#, None),
+        // Escapes are decoded: this is `./es6/depth-one`.
+        (r#"import("./es6/depth-on\u0065")"#, None),
+        (r#"import("./es6/depth-three-indirect")"#, None),
         // These are not valid config options and just fell back to the default value previously:
         // (r#"import { foo } from "./es6/depth-two""#, Some(json!([{"maxDepth":null}]))),
         // (r#"import { foo } from "./es6/depth-two""#, Some(json!([{"maxDepth":"∞"}]))),
-        // TODO: dynamic import
-        // (r#"function bar(){ return import("./es6/depth-one"); } // #2265 5"#, None),
-        // (r#"import { foo } from "./es6/depth-one-dynamic"; // #2265 6"#, None),
-        // (r#"function bar(){ return import("./es6/depth-one"); } // #2265 7"#, None),
-        // (r#"import { foo } from "./es6/depth-one-dynamic"; // #2265 8"#, None),
+        (r#"function bar(){ return import("./es6/depth-one"); } // #2265 5"#, None),
+        (r#"import { foo } from "./es6/depth-one-dynamic"; // #2265 6"#, None),
+        (r#"function bar(){ return import("./es6/depth-one"); } // #2265 7"#, None),
+        (r#"import { foo } from "./es6/depth-one-dynamic"; // #2265 8"#, None),
         // // Flow not supported
         // (r#"import { bar } from "./flow-types-depth-one""#, None),
         (r#"import { foo } from "./intermediate-ignore""#, None),
@@ -571,5 +597,28 @@ export const name = 'a';",
         .change_rule_path("cycles/issue_21252/a.js")
         .with_import_plugin(true)
         .with_snapshot_suffix("issue_21252")
+        .test_and_snapshot();
+}
+
+#[test]
+fn test_type_only_import_does_not_hide_dynamic_import() {
+    use serde_json::json;
+
+    use crate::tester::Tester;
+
+    // `b.ts` imports `a.ts`. A type-only import of `b.ts` is ignored, but the `import()` of the same
+    // specifier is a runtime edge that closes the cycle.
+    let code = r#"import type { B } from "./b";
+export type A = B;
+export const a = 1;
+export const load = () => import("./b");"#;
+
+    let pass = vec![(code, Some(json!([{"allowUnsafeDynamicCyclicDependency": true}])))];
+    let fail = vec![(code, None)];
+
+    Tester::new(NoCycle::NAME, NoCycle::PLUGIN, pass, fail)
+        .change_rule_path("cycles/typescript/type-and-dynamic/a.ts")
+        .with_import_plugin(true)
+        .with_snapshot_suffix("type_and_dynamic")
         .test_and_snapshot();
 }

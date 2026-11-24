@@ -8,6 +8,7 @@ use std::{
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
+use oxc_ast::{AstKind, ast::Expression};
 use oxc_semantic::Semantic;
 use oxc_span::Span;
 use oxc_str::CompactStr;
@@ -40,6 +41,14 @@ pub struct ModuleRecord {
     ///   export ExportFromClause FromClause
     /// Keyed by ModuleSpecifier, valued by all node occurrences
     pub requested_modules: FxHashMap<CompactStr, Vec<RequestedModule>>,
+
+    /// Module requests from `import()` expressions whose specifier is a string literal.
+    ///
+    /// These are not part of `[[RequestedModules]]`, but they are resolved into `loaded_modules`
+    /// alongside it, so a specifier in `loaded_modules` that is missing from `requested_modules`
+    /// is only ever imported dynamically.
+    /// Keyed by ModuleSpecifier, valued by the spans of the specifier literals.
+    pub dynamic_requested_modules: FxHashMap<CompactStr, Vec<Span>>,
 
     /// `[[LoadedModules]]`
     ///
@@ -108,6 +117,7 @@ impl fmt::Debug for ModuleRecord {
             .field("has_module_syntax", &self.has_module_syntax)
             .field("resolved_absolute_path", &self.resolved_absolute_path)
             .field("requested_modules", &self.requested_modules)
+            .field("dynamic_requested_modules", &self.dynamic_requested_modules)
             .field("loaded_modules", &loaded_modules)
             .field("sorted_loaded_modules", &self.sorted_loaded_modules)
             .field("import_entries", &self.import_entries)
@@ -468,8 +478,31 @@ impl ModuleRecord {
     pub fn new(
         path: &Path,
         other: &oxc_syntax::module_record::ModuleRecord,
-        _semantic: &Semantic,
+        semantic: &Semantic,
     ) -> Self {
+        let mut dynamic_requested_modules: FxHashMap<CompactStr, Vec<Span>> = FxHashMap::default();
+        let mut escaped_specifiers = None;
+        for dynamic_import in &other.dynamic_imports {
+            let raw = dynamic_import.module_request.source_text(semantic.source_text());
+            let Some(value) = string_literal_contents(raw) else {
+                continue;
+            };
+            let specifier = if value.contains('\\') {
+                let values = escaped_specifiers
+                    .get_or_insert_with(|| import_expression_string_specifiers(semantic));
+                let Some(specifier) = values.get(&dynamic_import.module_request) else {
+                    continue;
+                };
+                specifier.clone()
+            } else {
+                CompactStr::from(value)
+            };
+            dynamic_requested_modules
+                .entry(specifier)
+                .or_default()
+                .push(dynamic_import.module_request);
+        }
+
         Self {
             has_module_syntax: other.has_module_syntax,
             resolved_absolute_path: path.to_path_buf(),
@@ -483,6 +516,7 @@ impl ModuleRecord {
                     )
                 })
                 .collect(),
+            dynamic_requested_modules,
             import_entries: other.import_entries.iter().map(ImportEntry::from).collect(),
 
             local_export_entries: other
@@ -633,5 +667,47 @@ impl ModuleRecord {
             out.extend(remote_module_record.exported_bindings.keys().cloned());
             remote_module_record.collect_star_exported_bindings(visited, out);
         }
+    }
+}
+
+/// The text between the quotes of a string literal, as written. `None` for any other expression,
+/// including template literals, which `eslint-plugin-import` does not follow either.
+fn string_literal_contents(raw: &str) -> Option<&str> {
+    let quote = raw.chars().next().filter(|c| matches!(c, '"' | '\''))?;
+    raw.strip_prefix(quote)?.strip_suffix(quote)
+}
+
+/// Decoded string literal specifiers of the `import()` expressions in `semantic`, keyed by the
+/// literal's span. Only needed for specifiers with escapes, whose source text is not their value.
+fn import_expression_string_specifiers(semantic: &Semantic) -> FxHashMap<Span, CompactStr> {
+    semantic
+        .nodes()
+        .iter()
+        .filter_map(|node| match node.kind() {
+            AstKind::ImportExpression(import_expression) => match &import_expression.source {
+                Expression::StringLiteral(literal) => {
+                    literal.value.as_str().map(|value| (literal.span, CompactStr::from(value)))
+                }
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod test {
+    use super::string_literal_contents;
+
+    #[test]
+    fn string_literal_contents_reads_quoted_strings_only() {
+        assert_eq!(string_literal_contents(r#""./a""#), Some("./a"));
+        assert_eq!(string_literal_contents("'./a'"), Some("./a"));
+        assert_eq!(string_literal_contents(r#""./\u0061""#), Some(r"./\u0061"));
+        assert_eq!(string_literal_contents("`./a`"), None);
+        assert_eq!(string_literal_contents("name"), None);
+        assert_eq!(string_literal_contents(r#"("./a")"#), None);
+        assert_eq!(string_literal_contents(r#"""#), None);
+        assert_eq!(string_literal_contents(r#""./a'"#), None);
     }
 }

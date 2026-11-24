@@ -301,6 +301,98 @@ source: crates/oxc_linter/src/tester.rs
            ╰─────────╯ imports the current file
 
   ⚠ import(no-cycle): Dependency cycle detected
+   ╭─[cycles/depth-zero.js:1:8]
+ 1 │ import("./es6/depth-three-star")
+   ·        ────────────────────────
+   ╰────
+  help: Refactor to remove the cycle. Consider extracting shared code into a separate module that both files can import.
+  note: These paths form a cycle:
+           ╭──▶ ./es6/depth-three-star (fixtures/import/cycles/es6/depth-three-star.js)
+           │         ⬇ imports
+           │    ./depth-two (fixtures/import/cycles/es6/depth-two.js)
+           │         ⬇ imports
+           │    ./depth-one (fixtures/import/cycles/es6/depth-one.js)
+           │         ⬇ imports
+           │    ../depth-zero (fixtures/import/cycles/depth-zero.js)
+           ╰─────────╯ imports the current file
+
+  ⚠ import(no-cycle): Dependency cycle detected
+   ╭─[cycles/depth-zero.js:1:8]
+ 1 │ import("./es6/depth-on\u0065")
+   ·        ──────────────────────
+   ╰────
+  help: Refactor to remove the cycle. Consider extracting shared code into a separate module that both files can import.
+  note: These paths form a cycle:
+           ╭──▶ ./es6/depth-one (fixtures/import/cycles/es6/depth-one.js)
+           │         ⬇ imports
+           │    ../depth-zero (fixtures/import/cycles/depth-zero.js)
+           ╰─────────╯ imports the current file
+
+  ⚠ import(no-cycle): Dependency cycle detected
+   ╭─[cycles/depth-zero.js:1:8]
+ 1 │ import("./es6/depth-three-indirect")
+   ·        ────────────────────────────
+   ╰────
+  help: Refactor to remove the cycle. Consider extracting shared code into a separate module that both files can import.
+  note: These paths form a cycle:
+           ╭──▶ ./es6/depth-three-indirect (fixtures/import/cycles/es6/depth-three-indirect.js)
+           │         ⬇ imports
+           │    ./depth-two (fixtures/import/cycles/es6/depth-two.js)
+           │         ⬇ imports
+           │    ./depth-one (fixtures/import/cycles/es6/depth-one.js)
+           │         ⬇ imports
+           │    ../depth-zero (fixtures/import/cycles/depth-zero.js)
+           ╰─────────╯ imports the current file
+
+  ⚠ import(no-cycle): Dependency cycle detected
+   ╭─[cycles/depth-zero.js:1:31]
+ 1 │ function bar(){ return import("./es6/depth-one"); } // #2265 5
+   ·                               ─────────────────
+   ╰────
+  help: Refactor to remove the cycle. Consider extracting shared code into a separate module that both files can import.
+  note: These paths form a cycle:
+           ╭──▶ ./es6/depth-one (fixtures/import/cycles/es6/depth-one.js)
+           │         ⬇ imports
+           │    ../depth-zero (fixtures/import/cycles/depth-zero.js)
+           ╰─────────╯ imports the current file
+
+  ⚠ import(no-cycle): Dependency cycle detected
+   ╭─[cycles/depth-zero.js:1:21]
+ 1 │ import { foo } from "./es6/depth-one-dynamic"; // #2265 6
+   ·                     ─────────────────────────
+   ╰────
+  help: Refactor to remove the cycle. Consider extracting shared code into a separate module that both files can import.
+  note: These paths form a cycle:
+           ╭──▶ ./es6/depth-one-dynamic (fixtures/import/cycles/es6/depth-one-dynamic.js)
+           │         ⬇ imports
+           │    ../depth-zero (fixtures/import/cycles/depth-zero.js)
+           ╰─────────╯ imports the current file
+
+  ⚠ import(no-cycle): Dependency cycle detected
+   ╭─[cycles/depth-zero.js:1:31]
+ 1 │ function bar(){ return import("./es6/depth-one"); } // #2265 7
+   ·                               ─────────────────
+   ╰────
+  help: Refactor to remove the cycle. Consider extracting shared code into a separate module that both files can import.
+  note: These paths form a cycle:
+           ╭──▶ ./es6/depth-one (fixtures/import/cycles/es6/depth-one.js)
+           │         ⬇ imports
+           │    ../depth-zero (fixtures/import/cycles/depth-zero.js)
+           ╰─────────╯ imports the current file
+
+  ⚠ import(no-cycle): Dependency cycle detected
+   ╭─[cycles/depth-zero.js:1:21]
+ 1 │ import { foo } from "./es6/depth-one-dynamic"; // #2265 8
+   ·                     ─────────────────────────
+   ╰────
+  help: Refactor to remove the cycle. Consider extracting shared code into a separate module that both files can import.
+  note: These paths form a cycle:
+           ╭──▶ ./es6/depth-one-dynamic (fixtures/import/cycles/es6/depth-one-dynamic.js)
+           │         ⬇ imports
+           │    ../depth-zero (fixtures/import/cycles/depth-zero.js)
+           ╰─────────╯ imports the current file
+
+  ⚠ import(no-cycle): Dependency cycle detected
    ╭─[cycles/depth-zero.js:1:21]
  1 │ import { foo } from "./intermediate-ignore"
    ·                     ───────────────────────
