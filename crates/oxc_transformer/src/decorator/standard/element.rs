@@ -23,7 +23,7 @@ use crate::{
     },
     context::TraverseCtx,
     state::TransformState,
-    utils::ast_builder::{create_assignment, take_literal_property_key},
+    utils::ast_builder::{create_assignment, create_to_property_key, take_literal_property_key},
 };
 
 use super::{
@@ -315,12 +315,7 @@ impl<'a> StandardDecoratorState<'a> {
                                 | Expression::BigIntLiteral(_)
                         )
                     {
-                        let value = key.take_in(ctx);
-                        *key = helper_call_expr(
-                            Helper::ToPropertyKey,
-                            ArenaVec::from_value_in(Argument::from(value), ctx),
-                            ctx,
-                        );
+                        *key = create_to_property_key(key.take_in(ctx), ctx);
                         continue;
                     }
                     (&mut prop.key, decorated)
@@ -351,11 +346,7 @@ impl<'a> StandardDecoratorState<'a> {
             } else {
                 continue;
             };
-            *key = PropertyKey::from(helper_call_expr(
-                Helper::ToPropertyKey,
-                ArenaVec::from_value_in(Argument::from(value), ctx),
-                ctx,
-            ));
+            *key = PropertyKey::from(create_to_property_key(value, ctx));
         }
     }
 

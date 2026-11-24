@@ -56,10 +56,7 @@ use oxc_traverse::{Ancestor, BoundIdentifier, Traverse};
 use rustc_hash::FxHashMap;
 
 use crate::{
-    common::{
-        class_lowering::ClassLowering,
-        helper_loader::{Helper, helper_call_expr},
-    },
+    common::helper_loader::{Helper, helper_call_expr},
     context::TraverseCtx,
     state::TransformState,
     utils::{
@@ -123,17 +120,12 @@ impl<'a> ClassStaticBlock<'a> {
     /// Whether class properties transform lowers this class, including its static blocks.
     fn is_skipped(&self, class: &Class<'a>, ctx: &TraverseCtx<'a>) -> bool {
         self.skip_decorated_classes
-            && Self::lowered_for_decorators(ctx.state.class_lowering_before_entry(class))
+            && ctx.state.class_lowering_before_entry(class).lowers_for_decorators()
     }
 
     /// Same as [`Self::is_skipped`], for a class which has been entered.
     fn is_entered_class_skipped(&self, scope_id: ScopeId, ctx: &TraverseCtx<'a>) -> bool {
-        self.skip_decorated_classes
-            && Self::lowered_for_decorators(ctx.state.class_lowering_of(scope_id))
-    }
-
-    fn lowered_for_decorators(lowering: ClassLowering) -> bool {
-        lowering.lowers_for_decorators()
+        self.skip_decorated_classes && ctx.state.class_lowering_of(scope_id).lowers_for_decorators()
     }
 }
 
@@ -141,15 +133,15 @@ impl<'a> Traverse<'a, TransformState<'a>> for ClassStaticBlock<'a> {
     fn enter_statement(&mut self, stmt: &mut Statement<'a>, ctx: &mut TraverseCtx<'a>) {
         match stmt {
             Statement::ClassDeclaration(class)
-                if !self.is_skipped(class, ctx) && Self::needs_declaration_initializer(class) =>
+                if Self::needs_declaration_initializer(class) && !self.is_skipped(class, ctx) =>
             {
                 let declaration = Self::class_declaration_initializer(class.take_in(ctx), ctx);
                 *stmt = Statement::VariableDeclaration(declaration);
             }
             Statement::ExportDeclaration(export) => {
                 if let Declaration::ClassDeclaration(class) = &mut export.declaration
-                    && !self.is_skipped(class, ctx)
                     && Self::needs_declaration_initializer(class)
+                    && !self.is_skipped(class, ctx)
                 {
                     let declaration = Self::class_declaration_initializer(class.take_in(ctx), ctx);
                     export.declaration = Declaration::VariableDeclaration(declaration);
@@ -160,7 +152,7 @@ impl<'a> Traverse<'a, TransformState<'a>> for ClassStaticBlock<'a> {
                 else {
                     return;
                 };
-                if self.is_skipped(class, ctx) || !Self::needs_declaration_initializer(class) {
+                if !Self::needs_declaration_initializer(class) || self.is_skipped(class, ctx) {
                     return;
                 }
                 let mut class = class.take_in(ctx);

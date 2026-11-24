@@ -2,7 +2,7 @@ commit: 51225612
 
 node: v26.12.1
 
-Passed: 495 of 602 (82.23%)
+Passed: 496 of 602 (82.39%)
 
 Failures:
 
@@ -46,14 +46,6 @@ TypeError: Private element is not present on this object
 Error: Transform error
     at ./tasks/transform_conformance/fixtures/babel/babel-plugin-proposal-decorators-test-fixtures-2023-11-classes--to-es2015-replacement-static-private-instance-element-destructuring-exec.test.js:2:1
     at ./tasks/transform_conformance/fixtures/babel/babel-plugin-proposal-decorators-test-fixtures-2023-11-classes--to-es2015-replacement-static-private-instance-element-destructuring-exec.test.js:13:7
-
-./fixtures/babel/babel-plugin-proposal-decorators-test-fixtures-2023-11-classes-expressions-named-evaluation-exec.test.js
-AssertionError: expected [ '', '__proto__' ] to deeply equal [ '', '' ]
-    at ./tasks/transform_conformance/fixtures/babel/babel-plugin-proposal-decorators-test-fixtures-2023-11-classes-expressions-named-evaluation-exec.test.js:1110:16
-    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async VitestModuleRunner.directRequest (./node_modules/vite/dist/node/module-runner.js:1288:59)
-    at async VitestModuleRunner.cachedRequest (./node_modules/vite/dist/node/module-runner.js:1195:73)
-    at async VitestModuleRunner.import (./node_modules/vite/dist/node/module-runner.js:1150:10)
 
 ./fixtures/babel/babel-plugin-proposal-decorators-test-fixtures-2023-11-classes-replacement-static-elements-super-this-exec.test.js
 TypeError: Private element is not present on this object

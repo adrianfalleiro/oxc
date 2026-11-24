@@ -58,11 +58,7 @@ impl<'a> ClassDetails<'a> {
     ///
     /// See [`Self::per_evaluation_state`].
     pub fn declare_temp(&self, binding: &BoundIdentifier<'a>, ctx: &mut TraverseCtx<'a>) {
-        if self.per_evaluation_state {
-            ctx.state.var_declarations.insert_let(binding, None, &ctx.ast);
-        } else {
-            ctx.state.var_declarations.insert_var(binding, &ctx.ast);
-        }
+        declare_class_temp(self.per_evaluation_state, binding, ctx);
     }
 
     /// Create a temporary declaration for this class, using `let` for a decorated class.
@@ -387,5 +383,18 @@ impl<'a> ClassProperties<'a> {
     /// Get details of current class as `&mut` reference.
     pub(super) fn current_class_mut(&mut self) -> &mut ClassDetails<'a> {
         self.classes_stack.last_mut()
+    }
+}
+
+/// Declare a class temporary: `let` when the class needs per-evaluation state, otherwise `var`.
+pub(super) fn declare_class_temp<'a>(
+    per_evaluation_state: bool,
+    binding: &BoundIdentifier<'a>,
+    ctx: &mut TraverseCtx<'a>,
+) {
+    if per_evaluation_state {
+        ctx.state.var_declarations.insert_let(binding, None, &ctx.ast);
+    } else {
+        ctx.state.var_declarations.insert_var(binding, &ctx.ast);
     }
 }

@@ -1,6 +1,6 @@
 //! Integration of standard decorators with class bindings and private-element lowering.
 
-use oxc_allocator::{ArenaBox, ArenaVec, GetAddress, TakeIn, UnstableAddress};
+use oxc_allocator::{ArenaBox, GetAddress, TakeIn, UnstableAddress};
 use oxc_ast::ast::*;
 use oxc_span::SPAN;
 use oxc_str::Ident;
@@ -8,18 +8,20 @@ use oxc_syntax::{scope::ScopeId, symbol::SymbolFlags};
 use oxc_traverse::{Ancestor, BoundIdentifier};
 
 use crate::{
-    common::{
-        class_lowering::ClassLowering,
-        helper_loader::{Helper, helper_call_expr},
-    },
+    common::class_lowering::ClassLowering,
     context::TraverseCtx,
     decorator::standard::{
         ClassDecoratorBindings, ClassDecoratorState, ClassDecoratorTables, DecoratorElementKind,
         PrivateDecoratorAccess, StandardDecoratorState,
     },
+    utils::{
+        ast_builder::create_to_property_key, decorated_class::class_body_has_static_auto_accessor,
+    },
 };
 
-use super::{ClassBindings, ClassProperties, IdentIndexMap, PrivateProp};
+use super::{
+    ClassBindings, ClassProperties, IdentIndexMap, PrivateProp, class_details::declare_class_temp,
+};
 
 /// Decorator setup produced before the class is pushed onto the class stack.
 pub(super) struct DecoratorBodyEntry<'a> {
@@ -69,11 +71,7 @@ impl<'a> DecoratorBodyEntry<'a> {
     }
 
     pub fn declare_temp(&self, binding: &BoundIdentifier<'a>, ctx: &mut TraverseCtx<'a>) {
-        if self.per_evaluation_state {
-            ctx.state.var_declarations.insert_let(binding, None, &ctx.ast);
-        } else {
-            ctx.state.var_declarations.insert_var(binding, &ctx.ast);
-        }
+        declare_class_temp(self.per_evaluation_state, binding, ctx);
     }
 
     pub fn configure_private_props(&self, private_props: &mut IdentIndexMap<'a, PrivateProp<'a>>) {
@@ -100,12 +98,6 @@ impl<'a> DecoratorBodyEntry<'a> {
             bindings.decorator_static_brand = Some(brand);
         }
     }
-}
-
-/// Instance field initializers move on entry; decorators and keys are collected on exit.
-pub(super) enum InstanceFieldPhase<'b, 'a> {
-    Entry(&'b mut Vec<Expression<'a>>),
-    Exit,
 }
 
 impl<'a> ClassProperties<'a> {
@@ -150,9 +142,7 @@ impl<'a> ClassProperties<'a> {
             };
         }
         let static_accessor_binding = (has_auto_accessor
-            && body.body.iter().any(|element| {
-                matches!(element, ClassElement::AccessorProperty(prop) if prop.r#static && !prop.r#type.is_abstract())
-            }))
+            && class_body_has_static_auto_accessor(body))
         .then(|| {
             // Block-scoped, like the other temporaries of decorated and auto-accessor classes.
             let name = class_name_binding.map_or("Class", |binding| binding.name.as_str());
@@ -195,64 +185,64 @@ impl<'a> ClassProperties<'a> {
         }
     }
 
-    /// Wrap the initializer on entry, and collect its decorator and computed key on exit.
-    pub(super) fn on_instance_field(
+    /// Entry phase: wrap a decorated field's initializer and move it into the constructor.
+    pub(super) fn on_instance_field_entry(
         &mut self,
         prop: &mut ArenaBox<'a, PropertyDefinition<'a>>,
-        phase: InstanceFieldPhase<'_, 'a>,
+        instance_inits: &mut Vec<Expression<'a>>,
         ctx: &mut TraverseCtx<'a>,
     ) {
-        match phase {
-            InstanceFieldPhase::Entry(instance_inits) => {
-                if let Some(state) = self.current_class_mut().decorators.as_mut() {
-                    state.tables.record_instance_field_for_decorators(prop, ctx);
-                }
-                let state = self.current_class().decorators.as_ref();
-                let index = state.and_then(|state| state.tables.decorated_field_index(prop));
-                if let Some(index) = index {
-                    let value = prop.value.take();
-                    prop.value = Some(state.unwrap().wrap_decorated_field_value(value, index, ctx));
-                }
-                self.convert_instance_property(prop, instance_inits, ctx);
-                if let Some(index) = index {
-                    let state = self.current_class().decorators.as_ref().unwrap();
-                    instance_inits.push(state.decorated_field_extra_initializers(index, ctx));
-                }
-            }
-            InstanceFieldPhase::Exit => {
-                let address = prop.address();
-                let prop = &mut **prop;
-                if self.current_class().decorators.is_some() && !prop.decorators.is_empty() {
-                    let decorators = StandardDecoratorState::take_element_decorators(
-                        &mut prop.decorators,
-                        &prop.key,
-                        &mut self.insert_before,
-                        ctx,
-                    );
-                    let key = self
-                        .current_class_mut()
-                        .decorators
-                        .as_mut()
-                        .unwrap()
-                        .tables
-                        .take_instance_key(address)
-                        .unwrap_or_else(|| {
-                            StandardDecoratorState::decorator_key_expr(&prop.key, ctx)
-                        });
-                    self.push_decorate_element(
-                        DecoratorElementKind::Field,
-                        false,
-                        key,
-                        Some(&decorators),
-                        None,
-                        prop.key.private_name(),
-                        ctx,
-                    );
-                }
-                if prop.key.is_computed() {
-                    self.extract_instance_prop_computed_key(prop, ctx);
-                }
-            }
+        if let Some(state) = self.current_class_mut().decorators.as_mut() {
+            state.tables.record_instance_field_for_decorators(prop, ctx);
+        }
+        let state = self.current_class().decorators.as_ref();
+        let index = state.and_then(|state| state.tables.decorated_field_index(prop));
+        if let Some(index) = index {
+            let value = prop.value.take();
+            prop.value = Some(state.unwrap().wrap_decorated_field_value(value, index, ctx));
+        }
+        self.convert_instance_property(prop, instance_inits, ctx);
+        if let Some(index) = index {
+            let state = self.current_class().decorators.as_ref().unwrap();
+            instance_inits.push(state.decorated_field_extra_initializers(index, ctx));
+        }
+    }
+
+    /// Exit phase: collect the field's decorators and computed key.
+    pub(super) fn on_instance_field_exit(
+        &mut self,
+        prop: &mut ArenaBox<'a, PropertyDefinition<'a>>,
+        ctx: &mut TraverseCtx<'a>,
+    ) {
+        let address = prop.address();
+        let prop = &mut **prop;
+        if self.current_class().decorators.is_some() && !prop.decorators.is_empty() {
+            let decorators = StandardDecoratorState::take_element_decorators(
+                &mut prop.decorators,
+                &prop.key,
+                &mut self.insert_before,
+                ctx,
+            );
+            let key = self
+                .current_class_mut()
+                .decorators
+                .as_mut()
+                .unwrap()
+                .tables
+                .take_instance_key(address)
+                .unwrap_or_else(|| StandardDecoratorState::decorator_key_expr(&prop.key, ctx));
+            self.push_decorate_element(
+                DecoratorElementKind::Field,
+                false,
+                key,
+                Some(&decorators),
+                None,
+                prop.key.private_name(),
+                ctx,
+            );
+        }
+        if prop.key.is_computed() {
+            self.extract_instance_prop_computed_key(prop, ctx);
         }
     }
 
@@ -354,12 +344,7 @@ impl<'a> ClassProperties<'a> {
                 && method.key.is_computed()
                 && let Some(key) = method.key.as_expression_mut()
             {
-                let value = key.take_in(ctx);
-                *key = helper_call_expr(
-                    Helper::ToPropertyKey,
-                    ArenaVec::from_value_in(Argument::from(value), ctx),
-                    ctx,
-                );
+                *key = create_to_property_key(key.take_in(ctx), ctx);
             }
         }
         self.substitute_temp_var_for_method_computed_key(method, ctx);

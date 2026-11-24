@@ -20,7 +20,7 @@ use crate::{
 
 use super::{
     ClassBindings, ClassDetails, ClassProperties, IdentIndexMap, PrivateProp, PrivateProps,
-    decorators::InstanceFieldPhase, utils::exprs_into_stmts,
+    utils::exprs_into_stmts,
 };
 
 // TODO(improve-on-babel): If outer scope is sloppy mode, all code which is moved to outside
@@ -350,11 +350,7 @@ impl<'a> ClassProperties<'a> {
                     // Ignore `declare` properties as they don't have any runtime effect,
                     // and will be removed in the TypeScript transform later
                     if !prop.r#static && !prop.declare {
-                        self.on_instance_field(
-                            prop,
-                            InstanceFieldPhase::Entry(&mut instance_inits),
-                            ctx,
-                        );
+                        self.on_instance_field_entry(prop, &mut instance_inits, ctx);
                     }
                 }
                 ClassElement::MethodDefinition(method) => {
@@ -901,7 +897,7 @@ impl<'a> ClassProperties<'a> {
                     if prop.r#static {
                         self.on_static_field(prop, ctx);
                     } else {
-                        self.on_instance_field(prop, InstanceFieldPhase::Exit, ctx);
+                        self.on_instance_field_exit(prop, ctx);
                     }
                     return false;
                 }
